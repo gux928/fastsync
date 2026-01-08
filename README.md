@@ -29,13 +29,17 @@
 #### Installation
 
 **Linux**:
-Download the `.deb` package from [Releases](https://github.com/gux928/tool-rrsyc/releases) and run:
+Download the `.deb` package from [Releases](https://github.com/gux928/fastsync/releases) and run:
 ```bash
 sudo apt install ./fastsync_x.x.x_amd64.deb
 ```
+Or install via script:
+```bash
+curl -fsSL https://raw.githubusercontent.com/gux928/fastsync/master/install.sh | sh
+```
 
 **Windows**:
-Download `fastsync-x.x.x-setup.exe` from Releases and run the installer.
+Download the `.msi` from Releases and run the installer.
 
 #### Usage
 
@@ -74,13 +78,17 @@ fastsync ./src user@host:/app --delete --block-level
 #### 安装
 
 **Linux**:
-从 [Releases](https://github.com/gux928/tool-rrsyc/releases) 下载 `.deb` 包并执行：
+从 [Releases](https://github.com/gux928/fastsync/releases) 下载 `.deb` 包并执行：
 ```bash
 sudo apt install ./fastsync_x.x.x_amd64.deb
 ```
+或使用一键安装脚本：
+```bash
+curl -fsSL https://raw.githubusercontent.com/gux928/fastsync/master/install.sh | sh
+```
 
 **Windows**:
-从 Releases 下载 `fastsync-x.x.x-setup.exe` 并运行安装程序。
+从 Releases 下载 `.msi` 并运行安装程序。
 
 #### 常用命令
 
