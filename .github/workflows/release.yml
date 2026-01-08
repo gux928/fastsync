@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*' # 当推送以 v 开头的 tag 时触发
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,11 +13,14 @@ jobs:
   build:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             artifact_name: fastsync-linux-amd64
             asset_name: fastsync-linux-amd64
           - os: windows-latest
@@ -33,21 +37,62 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install musl tools
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Enable sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+        continue-on-error: true
+
+      - name: Verify sccache availability
+        shell: bash
+        run: |
+          if ! sccache --start-server; then
+            echo "Sccache unavailable; disabling RUSTC_WRAPPER."
+            echo "RUSTC_WRAPPER=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.target }}
+          add-job-id-key: false
+          cache-workspace-crates: true
+
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build Debian package
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+          DEB_DIR="packaging/linux"
+          mkdir -p dist "$DEB_DIR/usr/bin"
+          sed -i "s/^Version: .*/Version: ${VERSION}/" "$DEB_DIR/DEBIAN/control"
+          cp "target/${{ matrix.target }}/release/fastsync" "$DEB_DIR/usr/bin/fastsync"
+          chmod 755 "$DEB_DIR/usr/bin/fastsync"
+          dpkg-deb --build "$DEB_DIR" "dist/fastsync_${VERSION}_amd64.deb"
 
       - name: Install cargo-wix
         if: matrix.os == 'windows-latest'
         run: cargo install cargo-wix
 
+      - name: Install WiX Toolset
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install wixtoolset --no-progress
+          echo "C:\\Program Files (x86)\\WiX Toolset v3.11\\bin" >> $env:GITHUB_PATH
+
       - name: Build MSI Installer
         if: matrix.os == 'windows-latest'
-        run: cargo wix --no-build --target ${{ matrix.target }}
+        run: cargo wix --no-build --target ${{ matrix.target }} --nocapture
 
       - name: Prepare Assets
         shell: bash
         run: |
-          mkdir dist
+          mkdir -p dist
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp target/${{ matrix.target }}/release/fastsync.exe dist/fastsync.exe
             cp target/wix/*.msi dist/ 2>/dev/null || true
@@ -65,6 +110,7 @@ jobs:
             fastsync-*.zip
             fastsync-*.tar.gz
             dist/*.msi
+            dist/*.deb
 
   create-release:
     name: Create GitHub Release
@@ -86,5 +132,6 @@ jobs:
             artifacts/**/*.zip
             artifacts/**/*.tar.gz
             artifacts/**/*.msi
+            artifacts/**/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
