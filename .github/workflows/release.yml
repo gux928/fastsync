@@ -36,21 +36,35 @@ jobs:
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename and Prepare Assets
+      - name: Install cargo-wix
+        if: matrix.os == 'windows-latest'
+        run: cargo install cargo-wix
+
+      - name: Build MSI Installer
+        if: matrix.os == 'windows-latest'
+        run: cargo wix --no-build --target ${{ matrix.target }}
+
+      - name: Prepare Assets
         shell: bash
         run: |
           mkdir dist
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp target/${{ matrix.target }}/release/fastsync.exe dist/${{ matrix.asset_name }}
+            cp target/${{ matrix.target }}/release/fastsync.exe dist/fastsync.exe
+            cp target/wix/*.msi dist/ 2>/dev/null || true
+            cd dist && 7z a ../fastsync-windows-x64.zip fastsync.exe && cd ..
           else
-            cp target/${{ matrix.target }}/release/fastsync dist/${{ matrix.asset_name }}
+            cp target/${{ matrix.target }}/release/fastsync dist/fastsync
+            cd dist && tar -czvf ../fastsync-linux-x64.tar.gz fastsync && cd ..
           fi
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: dist/*
+          path: |
+            fastsync-*.zip
+            fastsync-*.tar.gz
+            dist/*.msi
 
   create-release:
     name: Create GitHub Release
@@ -60,16 +74,17 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: dist
+          path: artifacts
 
       - name: Display structure
-        run: ls -R dist/
+        run: ls -R artifacts/
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/fastsync-linux-amd64/fastsync-linux-amd64
-            dist/fastsync.exe/fastsync-windows-amd64.exe
+            artifacts/**/*.zip
+            artifacts/**/*.tar.gz
+            artifacts/**/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
