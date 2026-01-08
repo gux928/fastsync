@@ -1,0 +1,9 @@
+Package: fastsync
+Version: 0.1.10
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Your Team <your.email@example.com>
+Description: Fast incremental file sync over SSH (Rust)
+ A high-performance file synchronization tool similar to rsync,
+ supporting block-level incremental sync via SSH agent.
