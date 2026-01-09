@@ -2,7 +2,7 @@ use clap::Parser;
 use fastsync::config::Args;
 use fastsync::engine::SyncEngine;
 use fastsync::server::Server;
-use tracing::{error, info, Level};
+use tracing::{error, info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 fn main() -> anyhow::Result<()> {
@@ -77,30 +77,83 @@ fn main() -> anyhow::Result<()> {
 
 fn handle_update() -> anyhow::Result<()> {
     info!("Checking for updates...");
-    
-    // Choose the target name based on OS
-    let bin_name = if cfg!(windows) {
-        "fastsync-windows-amd64.exe"
+
+    let (bin_name, asset_name) = if cfg!(windows) {
+        ("fastsync.exe", "fastsync-windows-x64.zip")
     } else {
-        "fastsync-linux-amd64"
+        ("fastsync", "fastsync-linux-x64.tar.gz")
     };
 
-    let status = self_update::backends::github::Update::configure()
+    match self_update::backends::github::Update::configure()
         .repo_owner("gux928")
-        .repo_name("tool-rrsyc")
-        .bin_name("fastsync")
+        .repo_name("fastsync")
+        .bin_name(bin_name)
         .show_download_progress(true)
         .current_version(env!("CARGO_PKG_VERSION"))
-        .target(bin_name)
+        .target(asset_name)
         .build()?
-        .update()?;
-
-    if status.updated() {
-        info!("Update successful! New version: {}", status.version());
-    } else {
-        info!("Already up to date.");
+        .update()
+    {
+        Ok(status) => {
+            if status.updated() {
+                info!("Update successful! New version: {}", status.version());
+            } else {
+                info!("Already up to date.");
+            }
+            Ok(())
+        }
+        Err(err) => {
+            warn!("GitHub update failed, trying mirror fallback: {}", err);
+            update_from_mirrors(bin_name, asset_name)?;
+            info!("Update successful via mirror.");
+            Ok(())
+        }
     }
-
-    Ok(())
 }
 
+fn update_from_mirrors(bin_name: &str, asset_name: &str) -> anyhow::Result<()> {
+    let urls = mirror_asset_urls(asset_name);
+    let tmp_dir = self_update::TempDir::new()?;
+    let tmp_archive_path = tmp_dir.path().join(asset_name);
+
+    let mut last_err: Option<anyhow::Error> = None;
+    for url in urls {
+        let mut tmp_archive = std::fs::File::create(&tmp_archive_path)?;
+        let mut download = self_update::Download::from_url(&url);
+        download.show_progress(true);
+        match download.download_to(&mut tmp_archive) {
+            Ok(_) => {
+                let bin_path = tmp_dir.path().join(bin_name);
+                self_update::Extract::from_source(&tmp_archive_path)
+                    .extract_file(tmp_dir.path(), bin_name)?;
+                self_update::self_replace::self_replace(bin_path)?;
+                return Ok(());
+            }
+            Err(err) => {
+                last_err = Some(err.into());
+                continue;
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("All mirrors failed")))
+}
+
+fn mirror_asset_urls(asset_name: &str) -> Vec<String> {
+    let base = format!(
+        "https://github.com/{}/{}/releases/latest/download/{}",
+        "gux928", "fastsync", asset_name
+    );
+    vec![
+        format!(
+            "https://dl.fastsync.190hao.cn/releases/latest/download/{}",
+            asset_name
+        ),
+        base.clone(),
+        format!("https://ghproxy.com/{}", base),
+        format!(
+            "https://download.fastgit.org/{}/{}/releases/latest/download/{}",
+            "gux928", "fastsync", asset_name
+        ),
+    ]
+}

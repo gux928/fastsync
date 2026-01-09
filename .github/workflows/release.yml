@@ -116,6 +116,12 @@ jobs:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    env:
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -124,6 +130,23 @@ jobs:
 
       - name: Display structure
         run: ls -R artifacts/
+
+      - name: Install AWS CLI
+        if: env.R2_ENDPOINT != '' && env.R2_BUCKET != ''
+        run: sudo apt-get update && sudo apt-get install -y awscli
+
+      - name: Upload artifacts to R2
+        if: env.R2_ENDPOINT != '' && env.R2_BUCKET != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          DEST_TAG="s3://${R2_BUCKET}/releases/download/${TAG}"
+          DEST_LATEST="s3://${R2_BUCKET}/releases/latest/download"
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.msi" -o -name "*.deb" \) -print0 | while IFS= read -r -d '' f; do
+            aws s3 cp "$f" "${DEST_TAG}/$(basename "$f")" --endpoint-url "$R2_ENDPOINT" --no-progress
+            aws s3 cp "$f" "${DEST_LATEST}/$(basename "$f")" --endpoint-url "$R2_ENDPOINT" --no-progress
+          done
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2

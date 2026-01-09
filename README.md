@@ -35,7 +35,7 @@ sudo apt install ./fastsync_x.x.x_amd64.deb
 ```
 Or install via script:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gux928/fastsync/master/install.sh | sh
+curl -fsSL https://fastsync.190hao.cn/install.sh | sh
 ```
 
 **Windows**:
@@ -84,7 +84,7 @@ sudo apt install ./fastsync_x.x.x_amd64.deb
 ```
 或使用一键安装脚本：
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gux928/fastsync/master/install.sh | sh
+curl -fsSL https://fastsync.190hao.cn/install.sh | sh
 ```
 
 **Windows**:

@@ -5,11 +5,11 @@ use std::path::PathBuf;
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     /// Source path (local directory)
-    #[arg(value_name = "SOURCE", required_unless_present = "server")]
+    #[arg(value_name = "SOURCE", required_unless_present_any = ["server", "update"])]
     pub source: Option<PathBuf>,
 
     /// Destination path (user@host:path or local path)
-    #[arg(value_name = "DESTINATION", required_unless_present = "server")]
+    #[arg(value_name = "DESTINATION", required_unless_present_any = ["server", "update"])]
     pub destination: Option<String>,
 
     /// Exclude patterns (gitignore style)
