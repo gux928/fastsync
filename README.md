@@ -29,7 +29,7 @@
 #### Installation
 
 **Linux**:
-Download the `.deb` package from [Releases](https://github.com/gux928/fastsync/releases) and run:
+Download the `.deb` package from [Releases](https://dl.fastsync.190hao.cn/releases/latest/download/) and run:
 ```bash
 sudo apt install ./fastsync_x.x.x_amd64.deb
 ```
@@ -39,7 +39,7 @@ curl -fsSL https://fastsync.190hao.cn/install.sh | sh
 ```
 
 **Windows**:
-Download the `.msi` from Releases and run the installer.
+Download the `.msi` from [Releases](https://dl.fastsync.190hao.cn/releases/latest/download/) and run the installer.
 
 #### Usage
 
@@ -78,7 +78,7 @@ fastsync ./src user@host:/app --delete --block-level
 #### 安装
 
 **Linux**:
-从 [Releases](https://github.com/gux928/fastsync/releases) 下载 `.deb` 包并执行：
+从 [Releases](https://dl.fastsync.190hao.cn/releases/latest/download/) 下载 `.deb` 包并执行：
 ```bash
 sudo apt install ./fastsync_x.x.x_amd64.deb
 ```
@@ -88,7 +88,7 @@ curl -fsSL https://fastsync.190hao.cn/install.sh | sh
 ```
 
 **Windows**:
-从 Releases 下载 `.msi` 并运行安装程序。
+从 [Releases](https://dl.fastsync.190hao.cn/releases/latest/download/) 下载 `.msi` 并运行安装程序。
 
 #### 常用命令
 
