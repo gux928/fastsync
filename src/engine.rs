@@ -27,6 +27,7 @@ impl SyncEngine {
         let destination = self.args.destination.as_ref().expect("Destination required in client mode");
         let (user, host, remote_path) = parse_destination(destination)
             .ok_or_else(|| crate::FastSyncError::Config("Invalid destination format. Expected user@host:path".into()))?;
+        let is_windows_remote = is_windows_remote_path(remote_path);
 
         info!("Connecting to {}@{}...", user, host);
         let ssh_config = SshConfig {
@@ -119,8 +120,19 @@ impl SyncEngine {
              info!("Deleting {} files/dirs...", deletes.len());
              for path in deletes {
                  let remote_file_path = Path::new(remote_path).join(path);
-                 let cmd = format!("rm -rf '{}'", remote_file_path.to_string_lossy());
-                 conn.exec(&cmd)?;
+                 let remote_file_str = remote_file_path.to_string_lossy();
+                 if is_windows_remote {
+                     let ps_path = escape_powershell_literal(&remote_file_str);
+                     let cmd = format!(
+                         "powershell -NoProfile -NonInteractive -Command \"Remove-Item -LiteralPath '{}' -Force -Recurse -ErrorAction Stop\"",
+                         ps_path
+                     );
+                     conn.exec(&cmd)?;
+                 } else {
+                     let sh_path = escape_posix_literal(&remote_file_str);
+                     let cmd = format!("rm -rf -- '{}'", sh_path);
+                     conn.exec(&cmd)?;
+                 }
              }
         }
         
@@ -201,8 +213,19 @@ impl SyncEngine {
                             
                             agent.apply_delta(&remote_path_str, delta)?;
                             
-                            let cmd = format!("touch -d @{} '{}'", entry.mtime, remote_path_str);
-                            context_conn.exec(&cmd).ok();
+                            if is_windows_remote {
+                                let ps_path = escape_powershell_literal(&remote_path_str);
+                                let cmd = format!(
+                                    "powershell -NoProfile -NonInteractive -Command \"(Get-Item -LiteralPath '{}').LastWriteTimeUtc = [DateTimeOffset]::FromUnixTimeSeconds({}).UtcDateTime\"",
+                                    ps_path,
+                                    entry.mtime
+                                );
+                                context_conn.exec(&cmd).ok();
+                            } else {
+                                let sh_path = escape_posix_literal(&remote_path_str);
+                                let cmd = format!("touch -d @{} '{}'", entry.mtime, sh_path);
+                                context_conn.exec(&cmd).ok();
+                            }
                          }
                          Ok(())
                      })();
@@ -240,9 +263,26 @@ impl SyncEngine {
                                  conn.create_dir_all(parent)?;
                              }
                              conn.upload_file(&local_file_path, &remote_file_path)?;
-                             let cmd = format!("touch -d @{} '{}' && chmod {:o} '{}'", 
-                                 entry.mtime, remote_file_path.to_string_lossy(), entry.mode & 0o777, remote_file_path.to_string_lossy());
-                             conn.exec(&cmd).ok(); 
+                             let remote_path_str = remote_file_path.to_string_lossy();
+                             if is_windows_remote {
+                                 let ps_path = escape_powershell_literal(&remote_path_str);
+                                 let cmd = format!(
+                                     "powershell -NoProfile -NonInteractive -Command \"(Get-Item -LiteralPath '{}').LastWriteTimeUtc = [DateTimeOffset]::FromUnixTimeSeconds({}).UtcDateTime\"",
+                                     ps_path,
+                                     entry.mtime
+                                 );
+                                 conn.exec(&cmd).ok();
+                             } else {
+                                 let sh_path = escape_posix_literal(&remote_path_str);
+                                 let cmd = format!(
+                                     "touch -d @{} '{}' && chmod {:o} '{}'", 
+                                     entry.mtime,
+                                     sh_path,
+                                     entry.mode & 0o777,
+                                     sh_path
+                                 );
+                                 conn.exec(&cmd).ok();
+                             }
                         }
                         Ok(())
                     })();
@@ -282,4 +322,17 @@ fn parse_destination(dest: &str) -> Option<(&str, &str, &str)> {
     let host = user_host[1];
     
     Some((user, host, remote_path))
+}
+
+fn is_windows_remote_path(remote_path: &str) -> bool {
+    let bytes = remote_path.as_bytes();
+    bytes.len() > 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic()
+}
+
+fn escape_posix_literal(value: &str) -> String {
+    value.replace('\'', "'\\''")
+}
+
+fn escape_powershell_literal(value: &str) -> String {
+    value.replace('\'', "''")
 }
